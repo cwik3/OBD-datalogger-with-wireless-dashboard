@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tesla Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="time" id="clock">10:24 AM</div>
+  <div class="connection"><i class="fas fa-signal"></i><span>LTE</span></div>
+  <div class="temperature"><i class="fas fa-thermometer-half"></i><span>72°F</span></div>
+</div>
+
+<div class="dashboard">
+
+  <!-- LEFT PANEL: horizontal tabs -->
+  <div class="left-panel">
+    <div class="left-tabs">
+      <button class="left-tab active" data-section="history">History</button>
+      <button class="left-tab" data-section="session">Session</button>
+      <button class="left-tab" data-section="stats">Stats</button>
+    </div>
+    <div class="left-content">
+
+      <!-- Connection History -->
+      <div class="left-section active" id="section-history">
+        <div class="history-item">
+          <div class="history-dot"></div>
+          <div class="history-meta">
+            <div class="history-label">Home Charger</div>
+            <div class="history-time">Today, 7:12 AM</div>
+            <div class="history-detail">Connected · 2h 14m · +38%</div>
+          </div>
+        </div>
+        <div class="history-item">
+          <div class="history-dot old"></div>
+          <div class="history-meta">
+            <div class="history-label">Supercharger V3</div>
+            <div class="history-time">Yesterday, 3:40 PM</div>
+            <div class="history-detail">Connected · 22 min · +51%</div>
+          </div>
+        </div>
+        <div class="history-item">
+          <div class="history-dot old"></div>
+          <div class="history-meta">
+            <div class="history-label">Office Charging Bay</div>
+            <div class="history-time">Mon, 9:05 AM</div>
+            <div class="history-detail">Connected · 7h 48m · +62%</div>
+          </div>
+        </div>
+        <div class="history-item">
+          <div class="history-dot old"></div>
+          <div class="history-meta">
+            <div class="history-label">Home Charger</div>
+            <div class="history-time">Sun, 10:30 PM</div>
+            <div class="history-detail">Connected · 8h 01m · +100%</div>
+          </div>
+        </div>
+        <div class="history-item">
+          <div class="history-dot old"></div>
+          <div class="history-meta">
+            <div class="history-label">Supercharger V3</div>
+            <div class="history-time">Sat, 1:15 PM</div>
+            <div class="history-detail">Connected · 18 min · +42%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Session Time -->
+      <div class="left-section" id="section-session">
+        <div class="stat-row">
+          <div class="stat-label">Session time</div>
+          <div class="stat-value" id="session-time">00:48</div>
+          <div class="stat-sub">Started 9:36 AM</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Distance driven</div>
+          <div class="stat-value">14.2 <span style="font-size:13px;color:#555">mi</span></div>
+          <div class="stat-bar"><div class="stat-bar-fill" style="width:28%"></div></div>
+          <div class="stat-sub">of ~50 mi estimated range left</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Energy used</div>
+          <div class="stat-value">3.1 <span style="font-size:13px;color:#555">kWh</span></div>
+          <div class="stat-sub">218 Wh/mi avg this session</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Max speed</div>
+          <div class="stat-value">78 <span style="font-size:13px;color:#555">mph</span></div>
+          <div class="stat-sub">Avg 44 mph</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Regeneration</div>
+          <div class="stat-value">0.4 <span style="font-size:13px;color:#555">kWh</span></div>
+          <div class="stat-sub">Recovered this session</div>
+        </div>
+      </div>
+
+      <!-- All Stats / Data -->
+      <div class="left-section" id="section-stats">
+        <div style="font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Vehicle data</div>
+        <div class="data-grid">
+          <div class="data-card">
+            <div class="data-card-label">Odometer</div>
+            <div class="data-card-val">24,108<span class="data-card-unit">mi</span></div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-label">Battery</div>
+            <div class="data-card-val" id="stats-battery">75<span class="data-card-unit">%</span></div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-label">Est. range</div>
+            <div class="data-card-val">187<span class="data-card-unit">mi</span></div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-label">Tire psi</div>
+            <div class="data-card-val">42<span class="data-card-unit">psi</span></div>
+          </div>
+          <div class="data-divider"></div>
+          <div class="data-card">
+            <div class="data-card-label">Inside temp</div>
+            <div class="data-card-val">20<span class="data-card-unit">°C</span></div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-label">Outside</div>
+            <div class="data-card-val">22<span class="data-card-unit">°C</span></div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-label">Lifetime Wh/mi</div>
+            <div class="data-card-val">231<span class="data-card-unit">Wh</span></div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-label">Software</div>
+            <div class="data-card-val" style="font-size:13px">2024.8.3</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CENTER PANEL -->
+  <div class="center-panel">
+
+    <div class="panel-view car-view active">
+      <div class="map-container">
+        <div class="map-placeholder">
+          <div class="car-icon-area"><i class="fas fa-car"></i></div>
+          <div style="color:#333;font-size:13px;letter-spacing:0.08em;text-transform:uppercase">Vehicle status</div>
+        </div>
+        <div style="position:absolute;bottom:16px;right:16px;font-size:11px;color:#2a2a2a;text-align:right">
+          <div>All systems OK</div>
+        </div>
+      </div>
+      <div class="car-view-content" style="flex:0;padding:16px 0 0">
+        <div style="display:flex;align-items:baseline;justify-content:center;gap:12px">
+          <div class="speed-big" id="speed-display">63</div>
+          <div>
+            <div class="speed-unit">MPH</div>
+            <div class="gear-row">
+              <div class="gear">P</div><div class="gear">R</div><div class="gear active">D</div><div class="gear">N</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-view nav-view">
+      <div class="map-container">
+        <div class="map-placeholder">
+          <i class="fas fa-map-marked-alt" style="font-size:40px;color:#333"></i>
+          <span style="color:#333;font-size:13px;letter-spacing:0.08em;text-transform:uppercase">Navigation</span>
+        </div>
+        <div class="route-info">
+          <div class="route-text">Main St &rarr; Elm Rd</div>
+          <div class="route-details">
+            <span><i class="fas fa-clock"></i> 12 min</span>
+            <span><i class="fas fa-road"></i> 3.2 mi</span>
+            <span><i class="fas fa-flag"></i> ETA 10:42 AM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-view media-view">
+      <div class="media-player">
+        <div class="album-art"><i class="fas fa-music" style="font-size:40px;color:#333"></i></div>
+        <div>
+          <div class="song-title">Electric Dreams</div>
+          <div class="song-artist">Tesla Beats</div>
+        </div>
+        <div class="media-controls">
+          <button class="media-btn"><i class="fas fa-step-backward"></i></button>
+          <button class="media-btn play-pause" id="play-btn"><i class="fas fa-pause"></i></button>
+          <button class="media-btn"><i class="fas fa-step-forward"></i></button>
+        </div>
+        <div class="progress-container">
+          <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <div class="time-info"><span>1:24</span><span>3:52</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-view climate-view">
+      <div class="climate-control">
+        <div class="temp-display">20<span class="temp-unit">°C</span></div>
+        <div style="text-align:center">
+          <i class="fas fa-fan fan-icon pulse"></i>
+          <div class="fan-speed">Auto &middot; Medium</div>
+        </div>
+        <div class="seat-controls">
+          <button class="seat-btn" title="Driver seat heat"><i class="fas fa-temperature-high"></i></button>
+          <button class="seat-btn" title="Passenger seat heat"><i class="fas fa-temperature-high"></i></button>
+          <button class="seat-btn" title="Windshield defrost"><i class="fas fa-car-side"></i></button>
+          <button class="seat-btn" title="Rear defrost"><i class="fas fa-car"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-view settings-view">
+      <div class="settings-section">
+        <div class="settings-title">Display</div>
+        <div class="setting-item">
+          <span class="setting-label">Dark mode</span>
+          <div class="setting-control">
+            <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Brightness</span>
+          <div class="setting-control">
+            <div class="slider-control">
+              <input type="range" min="0" max="100" value="70" class="slider" id="brightness-slider">
+              <span class="slider-value" id="brightness-val">70</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-title">Audio</div>
+        <div class="setting-item">
+          <span class="setting-label">Volume</span>
+          <div class="setting-control">
+            <div class="slider-control">
+              <input type="range" min="0" max="100" value="45" class="slider" id="vol-slider">
+              <span class="slider-value" id="vol-val">45</span>
+            </div>
+          </div>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Balance</span>
+          <div class="setting-control">
+            <div class="slider-control">
+              <input type="range" min="-100" max="100" value="0" class="slider" id="bal-slider">
+              <span class="slider-value" id="bal-val">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-title">Driver profiles</div>
+        <div class="setting-item">
+          <span class="setting-label">Driver 1</span>
+          <div class="setting-control">
+            <button class="control-button">Load</button>
+            <button class="control-button">Save</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Driver 2</span>
+          <div class="setting-control">
+            <button class="control-button">Load</button>
+            <button class="control-button">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="passenger-temp">
+      <div class="passenger-temp-label">Passenger Temp</div>
+      <div class="passenger-temp-display">
+        <span id="passenger-temp-value">22</span><span class="temp-unit" style="font-size:18px;margin-left:3px">°C</span>
+      </div>
+      <div class="passenger-temp-controls">
+        <button class="temp-btn" id="temp-down"><i class="fas fa-minus"></i></button>
+        <button class="temp-btn" id="temp-up"><i class="fas fa-plus"></i></button>
+      </div>
+    </div>
+
+    <div class="bluetooth-info">
+      <i class="fab fa-bluetooth-b bluetooth-icon"></i>
+      <span class="bluetooth-text">Bluetooth Connected</span>
+    </div>
+
+    <div class="additional-controls">
+      <div class="control-section">
+        <div class="control-title">Driver Profiles</div>
+        <div class="control-buttons">
+          <button class="control-button">Driver 1</button>
+          <button class="control-button">Driver 2</button>
+          <button class="control-button">Guest</button>
+        </div>
+      </div>
+      <div class="control-section">
+        <div class="control-title">Quick Controls</div>
+        <div class="control-buttons">
+          <button class="control-button"><i class="fas fa-sun"></i></button>
+          <button class="control-button"><i class="fas fa-lightbulb"></i></button>
+          <button class="control-button"><i class="fas fa-volume-up"></i></button>
+          <button class="control-button"><i class="fas fa-lock"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM DOCK -->
+<div class="bottom-dock">
+  <button class="dock-btn active" data-view="car-view"><i class="fas fa-car"></i></button>
+  <button class="dock-btn" data-view="nav-view"><i class="fas fa-map-marked-alt"></i></button>
+  <button class="dock-btn" data-view="media-view"><i class="fas fa-music"></i></button>
+  <button class="dock-btn" data-view="climate-view"><i class="fas fa-temperature-low"></i></button>
+  <button class="dock-btn" data-view="settings-view"><i class="fas fa-cog"></i></button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

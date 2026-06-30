@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+C:/Users/HP/DSH_DL/build/CMakeFiles/bootloader
+C:/Users/HP/DSH_DL/build/CMakeFiles/bootloader.rule
+C:/Users/HP/DSH_DL/build/CMakeFiles/bootloader-complete.rule
+C:/Users/HP/DSH_DL/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+C:/Users/HP/DSH_DL/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+C:/Users/HP/DSH_DL/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+C:/Users/HP/DSH_DL/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+C:/Users/HP/DSH_DL/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+C:/Users/HP/DSH_DL/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+C:/Users/HP/DSH_DL/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
