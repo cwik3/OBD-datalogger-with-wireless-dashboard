@@ -7,8 +7,15 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_http_server.h"
+#include "vehicle_data.h"
+#include "Mock_CAN.h"
 
 #define MAX_CLIENTS 4
+
+// Pin WiFi/HTTP/WebSocket work to core 0; CAN tasks are pinned to core 1
+// in Mock_CAN.h's can_mock_init(). Keeping these on separate cores avoids
+// WiFi stack activity from jittering CAN bus timing and vice versa.
+#define NET_TASK_CORE 0
 
 extern "C" {
 
@@ -36,7 +43,9 @@ esp_err_t style_handler(httpd_req_t *req) {
 
 esp_err_t script_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "application/javascript");
-    httpd_resp_send(req, (const char *)script_js_start, script_js_end - script_js_start);
+    size_t len = script_js_end - script_js_start;
+    if (len > 0 && script_js_start[len - 1] == '\0') len--;
+    httpd_resp_send(req, (const char *)script_js_start, len);
     return ESP_OK;
 }
 
@@ -64,25 +73,60 @@ static void init_uris(void) {
     ws_uri.is_websocket = true;
 }
 
-static void telemetry_mock_task(void *pvParameters) {
-    int current_rpm = 800;
-    int direction   = 150;
+// =====================================================================
+// This task no longer generates its own fake RPM ramp / hardcoded
+// coolant-oil-voltage-fuel constants. It now reads the single shared
+// vehicle_data_t struct that Mock_CAN.h's rx_task() writes to whenever
+// a CAN frame decodes, and just serializes whatever is currently in
+// there. Once Mock_CAN.h is swapped for real CAN/K-Line acquisition,
+// this task requires zero changes - it only depends on the struct.
+//
+// NOTE: oil temp and boost are not produced anywhere in Mock_CAN.h's
+// PID set (0x0C, 0x0D, 0x05, 0x11, 0x04, 0x2F) - there's no real OBD-II
+// PID being simulated for either yet, so they're omitted from the JSON
+// below rather than left as silently-fake hardcoded numbers. Voltage
+// is included via vehicle_data_t but will read 0.0 until a PID/decode
+// path for it is added to Mock_CAN.h (see vehicle_data.h NOTE).
+// =====================================================================
+typedef struct {
+    httpd_handle_t server;
+    int            fd;
+    char           payload[256];
+    size_t         len;
+} ws_send_ctx_t;
 
+// This runs INSIDE the httpd task — safe to call send_frame_async here
+static void ws_send_work(void *arg) {
+    ws_send_ctx_t *ctx = (ws_send_ctx_t *)arg;
+    if (httpd_ws_get_fd_info(ctx->server, ctx->fd) == HTTPD_WS_CLIENT_WEBSOCKET) {
+        httpd_ws_frame_t pkt;
+        memset(&pkt, 0, sizeof(pkt));
+        pkt.payload = (uint8_t *)ctx->payload;
+        pkt.len     = ctx->len;
+        pkt.type    = HTTPD_WS_TYPE_TEXT;
+        esp_err_t ret = httpd_ws_send_frame_async(ctx->server, ctx->fd, &pkt);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "WS send failed fd=%d: %s", ctx->fd, esp_err_to_name(ret));
+        }
+    }
+    free(ctx);
+}
+
+static void telemetry_task(void *pvParameters) {
     while (1) {
         if (server_instance != NULL) {
-            current_rpm += direction;
-            if (current_rpm >= 7200) { current_rpm = 7200; direction = -200; }
-            if (current_rpm <= 900)  { current_rpm = 900;  direction =  150; }
-
-            int    current_speed = current_rpm / 30;
-            double boost = (current_rpm > 3000) ? ((current_rpm - 3000) * 0.00035) : 0.0;
+            vehicle_data_t data = vehicle_data_get();
 
             char json_string[256];
             snprintf(json_string, sizeof(json_string),
-                "{\"speed\":%d,\"rpm\":%d,\"boost\":%.2f,"
-                "\"coolant\":92,\"oil\":104,\"voltage\":14.1,"
-                "\"fuel\":68,\"temp\":19}",
-                current_speed, current_rpm, boost);
+                "{\"has_data\":%s,\"rpm\":%d,\"speed\":%d,"
+                "\"coolant\":%d,\"fuel\":%d,\"throttle\":%d,"
+                "\"load\":%d,\"voltage\":%.1f,\"frames\":%lu}",
+                data.has_data ? "true" : "false",
+                data.rpm, data.speed_kmh,
+                data.coolant_c, data.fuel_pct, data.throttle_pct,
+                data.engine_load_pct, data.voltage,
+                (unsigned long)data.frame_count);
 
             size_t clients = MAX_CLIENTS;
             int    client_fds[MAX_CLIENTS];
@@ -90,17 +134,25 @@ static void telemetry_mock_task(void *pvParameters) {
             if (httpd_get_client_list(server_instance, &clients, client_fds) == ESP_OK) {
                 for (size_t i = 0; i < clients; i++) {
                     if (httpd_ws_get_fd_info(server_instance, client_fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
-                        httpd_ws_frame_t ws_pkt;
-                        memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-                        ws_pkt.payload = (uint8_t *)json_string;
-                        ws_pkt.len     = strlen(json_string);
-                        ws_pkt.type    = HTTPD_WS_TYPE_TEXT;
-                        httpd_ws_send_frame_async(server_instance, client_fds[i], &ws_pkt);
+                        // Allocate ctx on heap — httpd_queue_work is async,
+                        // stack would be gone by the time it executes
+                        ws_send_ctx_t *ctx = (ws_send_ctx_t *)malloc(sizeof(ws_send_ctx_t));
+                        if (ctx == NULL) { ESP_LOGE(TAG, "OOM"); continue; }
+                        ctx->server = server_instance;
+                        ctx->fd     = client_fds[i];
+                        ctx->len    = strlen(json_string);
+                        memcpy(ctx->payload, json_string, ctx->len + 1);
+                        // Queue the send to run inside the httpd task context
+                        esp_err_t q = httpd_queue_work(server_instance, ws_send_work, ctx);
+                        if (q != ESP_OK) {
+                            ESP_LOGW(TAG, "queue_work failed: %s", esp_err_to_name(q));
+                            free(ctx);
+                        }
                     }
                 }
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(100)); // 10Hz is plenty for a dashboard
     }
 }
 
@@ -109,6 +161,7 @@ static httpd_handle_t start_webserver(void) {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_open_sockets = 7;
+    config.core_id = NET_TASK_CORE; // pin httpd's internal task to core 0
 
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
@@ -152,7 +205,13 @@ void app_main(void) {
     wifi_init_softap();
     server_instance = start_webserver();
 
-    xTaskCreatePinnedToCore(telemetry_mock_task, "telemetry", 4096, NULL, 5, NULL, 0);
+    // can_mock_init() creates and pins its own tasks (tx/rx/obd_request)
+    // to core 1 internally - see Mock_CAN.h. It also calls
+    // vehicle_data_init(), which must happen before telemetry_task starts
+    // reading from it, so this call must stay above the line below.
+    can_mock_init();
+
+    xTaskCreatePinnedToCore(telemetry_task, "telemetry", 4096, NULL, 5, NULL, NET_TASK_CORE);
 }
 
 } // extern "C"

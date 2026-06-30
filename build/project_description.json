@@ -1,7 +1,7 @@
 {
     "version":            "1.3",
     "project_name":       "DSH_DL",
-    "project_version":    "1",
+    "project_version":    "50e943d-dirty",
     "project_path":       "C:/Users/HP/DSH_DL",
     "idf_path":           "C:/esp/v6.0.1/esp-idf",
     "build_dir":          "C:/Users/HP/DSH_DL/build",
@@ -1760,12 +1760,12 @@
             "dir": "C:/Users/HP/DSH_DL/main",
             "type": "LIBRARY",
             "lib": "__idf_main",
-            "reqs": [ "esp_wifi", "esp_http_server", "nvs_flash" ],
+            "reqs": [ "esp_wifi", "esp_http_server", "nvs_flash", "esp_driver_twai" ],
             "priv_reqs": [],
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "file": "C:/Users/HP/DSH_DL/build/esp-idf/main/libmain.a",
-            "sources": [ "C:/Users/HP/DSH_DL/main/main.cpp", "C:/Users/HP/DSH_DL/build/index.html.S", "C:/Users/HP/DSH_DL/build/style.css.S", "C:/Users/HP/DSH_DL/build/script.js.S" ],
+            "sources": [ "C:/Users/HP/DSH_DL/main/main.cpp", "C:/Users/HP/DSH_DL/main/vehicle_data.c", "C:/Users/HP/DSH_DL/build/index.html.S", "C:/Users/HP/DSH_DL/build/style.css.S", "C:/Users/HP/DSH_DL/build/script.js.S" ],
             "include_dirs": [ "." ]
         },
         "mbedtls": {
@@ -3899,7 +3899,7 @@
             "dir": "C:/Users/HP/DSH_DL/main",
             "source": "project_components",
             "lib": "__idf_main",
-            "reqs": [ "esp_wifi", "esp_http_server", "nvs_flash" ],
+            "reqs": [ "esp_wifi", "esp_http_server", "nvs_flash", "esp_driver_twai" ],
             "priv_reqs": [],
             "managed_reqs": [],
             "managed_priv_reqs": [],

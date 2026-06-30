@@ -129,3 +129,116 @@ input:checked+.toggle-slider:before{transform:translateX(22px)}
 .gear.active{color:#fff;background:rgba(255,255,255,0.08)}
 .car-icon-area{opacity:0.15}
 .car-icon-area i{font-size:80px}
+
+/* OBD-II additions */
+.pid-table{width:100%;border-collapse:collapse;font-size:12px}
+.pid-table thead th{text-align:left;color:#444;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;padding-bottom:6px;border-bottom:1px solid #222;font-weight:400}
+.pid-table tbody td{padding:7px 4px;border-bottom:1px solid #161616;color:#ccc}
+.pid-table tbody tr:last-child td{border-bottom:none}
+.pid-table .pid-name{color:#fff}
+.pid-table .pid-val{color:#4CAF50;font-variant-numeric:tabular-nums}
+.pid-table .pid-time{color:#555;font-size:10px}
+.pid-hint{font-size:10px;color:#444;margin-top:10px;line-height:1.5}
+
+.dtc-empty{font-size:13px;color:#444;padding:14px 0;text-align:center;border:1px dashed #1f1f1f;border-radius:6px}
+.dtc-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1a1a}
+.dtc-code{font-size:13px;color:#E74C3C;font-weight:600;width:60px;flex-shrink:0}
+.dtc-desc{font-size:12px;color:#aaa}
+
+.gauge-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px 10px}
+.gauge-tile{background:#0d0d0d;border:1px solid #1f1f1f;border-radius:10px;padding:18px 10px;text-align:center}
+.gauge-value{font-size:36px;font-weight:200;color:#fff;font-variant-numeric:tabular-nums}
+.gauge-label{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px}
+
+/* ===== RX/TX LED indicators ===== */
+.bus-leds{display:flex;gap:14px;align-items:center}
+.led-group{display:flex;align-items:center;gap:5px}
+.led{width:8px;height:8px;border-radius:50%;background:#222;box-shadow:0 0 0 rgba(0,0,0,0);transition:all 0.1s ease;flex-shrink:0}
+.led.lit-rx{background:#4CAF50;box-shadow:0 0 6px 1px rgba(76,175,80,0.8)}
+.led.lit-tx{background:#3498DB;box-shadow:0 0 6px 1px rgba(52,152,219,0.8)}
+.led.led-off{background:#222}
+.led.lit-kline{background:#F39C12;box-shadow:0 0 6px 1px rgba(243,156,18,0.8)}
+.led-text{font-size:10px;color:#555;letter-spacing:0.04em}
+
+/* ===== Raw frame drawer ===== */
+.frame-drawer{background:#000;border-bottom:1px solid #222;position:relative;z-index:5}
+.frame-drawer-tab{width:100%;background:#0a0a0a;border:none;color:#888;padding:6px 20px;font-size:11px;display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:uppercase;letter-spacing:0.04em;transition:background 0.2s}
+.frame-drawer-tab:hover{background:#111}
+.frame-drawer-tab span{margin-right:4px}
+.frame-drawer-count{background:#1a1a1a;color:#4CAF50;border-radius:10px;padding:1px 8px;font-size:10px;font-variant-numeric:tabular-nums}
+.drawer-chevron{margin-left:auto;transition:transform 0.25s ease;font-size:10px}
+.frame-drawer.open .drawer-chevron{transform:rotate(180deg)}
+.frame-drawer-body{max-height:0;overflow:hidden;transition:max-height 0.25s ease;background:#060606}
+.frame-drawer.open .frame-drawer-body{max-height:220px}
+.frame-drawer-controls{display:flex;gap:8px;padding:8px 20px;border-bottom:1px solid #161616}
+.frame-list{max-height:170px;overflow-y:auto;padding:6px 20px;font-family:'Courier New',monospace;font-size:11px}
+.frame-row{display:flex;gap:14px;padding:3px 0;color:#666;border-bottom:1px solid #111}
+.frame-row .f-time{color:#444;width:70px;flex-shrink:0}
+.frame-row .f-dir{width:24px;flex-shrink:0;font-weight:bold}
+.frame-row .f-dir.rx{color:#4CAF50}
+.frame-row .f-dir.tx{color:#3498DB}
+.frame-row .f-id{color:#F39C12;width:60px;flex-shrink:0}
+.frame-row .f-data{color:#999}
+
+/* ===== Sparklines ===== */
+.pid-table td.spark-cell{padding:4px}
+.spark-canvas{display:block;width:60px;height:20px}
+.pid-controls{margin-top:12px}
+
+/* ===== Gauge color-coding ===== */
+.gauge-tile{position:relative;transition:border-color 0.3s ease}
+.gauge-value.gauge-ok{color:#fff}
+.gauge-value.gauge-warn{color:#F39C12}
+.gauge-value.gauge-crit{color:#E74C3C}
+.gauge-tile.gauge-tile-warn{border-color:rgba(243,156,18,0.4)}
+.gauge-tile.gauge-tile-crit{border-color:rgba(231,76,60,0.5)}
+
+/* ===== Freeze ===== */
+.freeze-badge{position:absolute;top:8px;left:8px;background:rgba(52,152,219,0.15);border:1px solid #3498DB;color:#3498DB;font-size:10px;letter-spacing:0.06em;padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:6px;z-index:3}
+.gauge-grid{position:relative}
+.frozen .gauge-value{opacity:0.55}
+
+/* ===== Mobile layout ===== */
+@media (max-width: 600px) {
+  body { height: auto; overflow-y: auto; }
+
+  .dashboard {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .left-panel, .center-panel, .right-panel {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid #333;
+  }
+
+  .left-content { max-height: 240px; }
+
+  .gauge-grid {
+    grid-template-columns: 1fr 1fr;
+    padding: 14px 6px;
+  }
+
+  .gauge-value { font-size: 28px; }
+
+  .top-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+  }
+
+  .bus-leds { order: 3; width: 100%; justify-content: center; }
+
+  .right-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .passenger-temp { margin-top: 0; }
+
+  .bottom-dock {
+    position: sticky;
+    bottom: 0;
+  }
+}
