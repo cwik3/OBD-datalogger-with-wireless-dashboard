@@ -231,117 +231,128 @@ static void wifi_init_softap(void) {
 }
 
 #define KLINE_UART_NUM UART_NUM_1
-#define KLINE_TX_PIN GPIO_NUM_10
-#define KLINE_RX_PIN GPIO_NUM_9
+#define KLINE_TX_PIN GPIO_NUM_17
+#define KLINE_RX_PIN GPIO_NUM_16
 #define KLINE_BAUD 10400
 
 static const char* K_TAG = "K-LINE";
 
-void kline_fast_init() {
-    ESP_LOGI(K_TAG, "Rozpoczynam sekwencje Fast Init (KWP2000)...");
 
-    // 1. Odepnij pin od UART i przejmij nad nim reczna kontrole (GPIO)
-    gpio_reset_pin(KLINE_TX_PIN);
-    gpio_set_direction(KLINE_TX_PIN, GPIO_MODE_OUTPUT);
 
-    // 2. Sekwencja wybudzajaca ECU
-    gpio_set_level(KLINE_TX_PIN, 1);
-    vTaskDelay(pdMS_TO_TICKS(300)); // Stan bezczynnosci (Idle)
-
-    gpio_set_level(KLINE_TX_PIN, 0);
-    vTaskDelay(pdMS_TO_TICKS(25));  // 25ms LOW
-
-    gpio_set_level(KLINE_TX_PIN, 1);
-    vTaskDelay(pdMS_TO_TICKS(25));  // 25ms HIGH
-
-    // 3. Konfiguracja sprzętowego UART (unikamy designated initializers dla C++)
+static void kline_echo_test_task(void *arg) {
+    ESP_LOGI(K_TAG, "--- START TESTU ECHA SPRZETOWEGO K-LINE ---");
+    
     uart_config_t uart_config = {};
-    uart_config.baud_rate = KLINE_BAUD;
+    uart_config.baud_rate = 10400;
     uart_config.data_bits = UART_DATA_8_BITS;
     uart_config.parity    = UART_PARITY_DISABLE;
     uart_config.stop_bits = UART_STOP_BITS_1;
     uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
     uart_config.source_clk = UART_SCLK_APB;
-
+    
     uart_driver_install(KLINE_UART_NUM, 256, 256, 0, NULL, 0);
     uart_param_config(KLINE_UART_NUM, &uart_config);
     uart_set_pin(KLINE_UART_NUM, KLINE_TX_PIN, KLINE_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    uart_flush_input(KLINE_UART_NUM); // clear any noise before the handshake
+    uart_flush_input(KLINE_UART_NUM);
 
-    // 4. Natychmiastowe wyslanie rzadania "Start Communication"
-    // Ramka: [Format] [Target] [Source] [SID] [Checksum]
-    uint8_t start_req[] = {0x81, 0x11, 0xF1, 0x81, 0x04};
-    uart_write_bytes(KLINE_UART_NUM, (const char*)start_req, sizeof(start_req));
-
-    // 5. Wyczyszczenie fizycznego echa ze złącza RX (L9637D powiela to co wysylamy)
-    uint8_t echo[sizeof(start_req)];
-    uart_read_bytes(KLINE_UART_NUM, echo, sizeof(start_req), pdMS_TO_TICKS(50));
-    ESP_LOGI(K_TAG, "Init wyslany! Czekam na odpowiedz ECU...");
-}
-
-void kline_master_task(void *arg) {
-    kline_fast_init();
-
-    // Drain and log the ECU's actual reply to StartCommunication before
-    // polling. Skipping this leaves those bytes sitting in the RX queue,
-    // which permanently desyncs every subsequent PID read once the loop
-    // below starts.
-    uint8_t init_resp[16];
-    int init_len = uart_read_bytes(KLINE_UART_NUM, init_resp, sizeof(init_resp), pdMS_TO_TICKS(300));
-    if (init_len > 0) {
-        char hex[16 * 3 + 1] = {0};
-        for (int i = 0; i < init_len; i++) {
-            char b[4];
-            snprintf(b, sizeof(b), "%02X ", init_resp[i]);
-            strcat(hex, b);
-        }
-        ESP_LOGI(K_TAG, "ECU StartComm response (%d bytes): %s", init_len, hex);
-    } else {
-        ESP_LOGW(K_TAG, "Brak odpowiedzi ECU na StartCommunication - sprawdz okablowanie/timing wybudzenia");
-    }
-    vTaskDelay(pdMS_TO_TICKS(55)); // P3min guard before first service request
-
-    // Ramka zadanina PID 0C (Engine RPM)
-    // 0x68 = Format (3 bajty naglowka, 1 bajt danych)
-    // 0x6A = Target (Engine)
-    // 0xF1 = Source (Nasz Tester)
-    // 0x01 = Mode 01 (Live Data)
-    // 0x0C = PID (RPM)
-    // 0xD0 = Checksum (0x68+0x6A+0xF1+0x01+0x0C) & 0xFF
-    uint8_t req_rpm[] = {0x68, 0x6A, 0xF1, 0x01, 0x0C, 0xD0};
-
+    // Unikalna, testowa sekwencja bajtów
+    uint8_t test_msg[] = {0xAA, 0xBB, 0xCC, 0xDD}; 
+    
     while(1) {
-        // Wyslanie zapytania
-        uart_write_bytes(KLINE_UART_NUM, (const char*)req_rpm, sizeof(req_rpm));
-
-        // Wyczyszczenie echa z bufora (dokladnie tyle bajtow, ile wyslalismy)
-        uint8_t echo[sizeof(req_rpm)];
-        uart_read_bytes(KLINE_UART_NUM, echo, sizeof(req_rpm), pdMS_TO_TICKS(50));
-
-        // Odczyt odpowiedzi od ECU
-        uint8_t resp[16];
-        int len = uart_read_bytes(KLINE_UART_NUM, resp, sizeof(resp), pdMS_TO_TICKS(100));
-
-        if (len >= 8) {
-            // Sprawdzenie, czy to odpowiedz na nasz Mode 01 (odpowiedz to Mode + 0x40 = 0x41)
-            // Indeksy zaleza od konkretnej dlugosci naglowka zwrotnego z Renault, zazwyczaj dane zaczynaja sie na 4 bajcie
-            if (resp[3] == 0x41 && resp[4] == 0x0C) {
-                uint8_t sum = 0;
-                for (int i = 0; i < len - 1; i++) sum += resp[i];
-                if (sum == resp[len - 1]) {
-                    int rpm = ((resp[5] * 256) + resp[6]) / 4;
-                    vehicle_data_set_rpm(rpm);
-                    ESP_LOGI(K_TAG, "Odczytano RPM: %d", rpm);
-                } else {
-                    ESP_LOGW(K_TAG, "RPM checksum mismatch, odrzucam ramke");
-                }
+        ESP_LOGI(K_TAG, "Wysylam: AA BB CC DD");
+        uart_write_bytes(KLINE_UART_NUM, (const char*)test_msg, sizeof(test_msg));
+        
+        uint8_t echo[16] = {0};
+        // Czekamy na echo 100ms
+        int len = uart_read_bytes(KLINE_UART_NUM, echo, sizeof(echo), pdMS_TO_TICKS(100));
+        
+        if (len > 0) {
+            char hex[64] = {0};
+            for(int i = 0; i < len; i++) {
+                char b[4]; snprintf(b, sizeof(b), "%02X ", echo[i]); strcat(hex, b);
             }
+            ESP_LOGI(K_TAG, "Odebrano: %s", hex);
+            
+            if (len >= 4 && echo[0] == 0xAA && echo[1] == 0xBB) {
+                ESP_LOGI(K_TAG, "WYNIK: Echo sprzętowe działa! Transceiver fizycznie sprawny.");
+            } else {
+                ESP_LOGW(K_TAG, "WYNIK: Przyszly śmieci. Sprawdź masy i zakłócenia.");
+            }
+        } else {
+            ESP_LOGE(K_TAG, "WYNIK: BRAK ECHA! RX milczy. Sprawdź zasilanie 12V na pinie 7 układu L9637D.");
         }
-
-        // Obowiazkowy "Guard Time" (odstep miedzy ramkami w K-Line to absolutne minimum 50ms)
-        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
+
+
+static void kline_scanner_task(void *arg) {
+    ESP_LOGI(K_TAG, "--- ROZPOCZYNAM SKANOWANIE MODULOW K-LINE ---");
+    
+    uart_config_t uart_config = {};
+    uart_config.baud_rate = 10400;
+    uart_config.data_bits = UART_DATA_8_BITS;
+    uart_config.parity    = UART_PARITY_DISABLE;
+    uart_config.stop_bits = UART_STOP_BITS_1;
+    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+    uart_config.source_clk = UART_SCLK_APB;
+    
+    uart_driver_install(KLINE_UART_NUM, 256, 256, 0, NULL, 0);
+    uart_param_config(KLINE_UART_NUM, &uart_config);
+
+    // Lista adresow do przeskanowania (Typowe dla Renault)
+    uint8_t targets[] = {0x11, 0x26, 0x2C, 0x58, 0x7A, 0x33}; 
+    const char* target_names[] = {"Silnik (11)", "UCH (26)", "ABS (2C)", "Airbag (58)", "Tester (7A)", "Broadcast (33)"};
+
+    for (int i = 0; i < 6; i++) {
+        uint8_t tgt = targets[i];
+        
+        // 1. Inicjalizacja Fast Init przed kazdym zapytaniem
+        gpio_reset_pin(KLINE_TX_PIN);
+        gpio_set_direction(KLINE_TX_PIN, GPIO_MODE_OUTPUT);
+        gpio_set_level(KLINE_TX_PIN, 1); vTaskDelay(pdMS_TO_TICKS(300));
+        gpio_set_level(KLINE_TX_PIN, 0); vTaskDelay(pdMS_TO_TICKS(25));
+        gpio_set_level(KLINE_TX_PIN, 1); vTaskDelay(pdMS_TO_TICKS(25));
+        
+        // Ponowne wpiecie UART
+        uart_set_pin(KLINE_UART_NUM, KLINE_TX_PIN, KLINE_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+        uart_flush_input(KLINE_UART_NUM);
+
+        // 2. Budowa ramki Start Communication z podmienionym adresem
+        uint8_t chk = (0x81 + tgt + 0xF1 + 0x81) & 0xFF;
+        uint8_t req[] = {0x81, tgt, 0xF1, 0x81, chk};
+
+        ESP_LOGI(K_TAG, "Pukam do modulu: %s", target_names[i]);
+        uart_write_bytes(KLINE_UART_NUM, (const char*)req, 5);
+
+        // Wyczyszczenie echa
+        uint8_t echo[5];
+        uart_read_bytes(KLINE_UART_NUM, echo, 5, pdMS_TO_TICKS(50));
+
+        // 3. Nasluch odpowiedzi
+        uint8_t resp[16];
+        int len = uart_read_bytes(KLINE_UART_NUM, resp, sizeof(resp), pdMS_TO_TICKS(300));
+
+        if (len > 0) {
+            char hex[64] = {0};
+            for(int j = 0; j < len; j++) {
+                char b[4]; snprintf(b, sizeof(b), "%02X ", resp[j]); strcat(hex, b);
+            }
+            ESP_LOGI(K_TAG, ">>> SUKCES! Modul %02X odpowiedzial: %s", tgt, hex);
+        } else {
+            ESP_LOGW(K_TAG, "Cisza od modulu %02X", tgt);
+        }
+        
+        // Przerwa przed kolejnym testem
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+    
+    ESP_LOGI(K_TAG, "Skanowanie zakonczone.");
+    while(1) { vTaskDelay(pdMS_TO_TICKS(1000)); } // Zawieszenie zadania
+}
+
+
 
 static void real_can_task(void *arg) {
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX_PIN, CAN_RX_PIN, TWAI_MODE_NORMAL);
@@ -437,8 +448,9 @@ void app_main(void) {
     // reading from it, so this call must stay above the line below.
     //can_mock_init();
     // can_mock_init();
-    //xTaskCreatePinnedToCore(kline_master_task, "kline_task", 4096, NULL, 5, NULL, 1);
-    xTaskCreatePinnedToCore(real_can_task, "can_task", 4096, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(kline_scanner_task, "kline_task", 4096, NULL, 5, NULL, 1);
+    //xTaskCreatePinnedToCore(real_can_task, "can_task", 4096, NULL, 5, NULL, 1);
+    //xTaskCreatePinnedToCore(kline_echo_test_task, "kline_echo", 4096, NULL, 5, NULL, 1);
     xTaskCreatePinnedToCore(telemetry_task, "telemetry", 4096, NULL, 5, NULL, NET_TASK_CORE);
 }
 
