@@ -50,7 +50,7 @@ const char index_html[] = R"=====(
       <span class="led led-off" id="led-kline"></span><span class="led-text">K-LINE</span>
     </div>
   </div>
-  <div class="connection"><i class="fas fa-signal"></i><span id="bus-proto">CAN 500k</span></div>
+  <div class="connection"><i class="fas fa-signal"></i><span id="bus-proto">Connecting...</span></div>
   <div class="temperature"><i class="fas fa-microchip"></i><span id="refresh-rate">12 Hz</span></div>
 </div>
 
@@ -108,6 +108,14 @@ const char index_html[] = R"=====(
           <div class="stat-value" id="pid-count">6</div>
           <div class="stat-sub">supported PIDs auto-detected at connect</div>
         </div>
+        <div class="stat-row">
+          <div class="stat-label">Max Speed / Max RPM</div>
+          <div class="stat-value"><span id="stat-max-speed">0</span> <span style="font-size:12px;color:#555">km/h</span> <span style="color:#555">/</span> <span id="stat-max-rpm">0</span></div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Coolant Range</div>
+          <div class="stat-value"><span id="stat-min-coolant">--</span> <span style="font-size:12px;color:#555">-</span> <span id="stat-max-coolant">--</span> <span style="font-size:12px;color:#555">°C</span></div>
+        </div>
       </div>
 
       <!-- Live PIDs table -->
@@ -130,9 +138,27 @@ const char index_html[] = R"=====(
       <!-- DTC / Status -->
       <div class="left-section" id="section-dtc">
         <div style="font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Diagnostic trouble codes</div>
+        
+        <!-- NOWE PRZYCISKI KOSZYKA 2 -->
+        <div style="display:flex; gap:10px; margin-bottom: 12px;">
+          <button class="control-button" id="btn-read-dtc" style="flex:1;"><i class="fas fa-search"></i> Read DTCs</button>
+          <button class="control-button" id="btn-clear-dtc" style="flex:1; background:rgba(231,76,60,0.15); color:#E74C3C; border:1px solid rgba(231,76,60,0.3);"><i class="fas fa-trash"></i> Clear DTCs</button>
+        </div>
+
         <div id="dtc-list">
           <div class="dtc-empty">No DTCs reported</div>
         </div>
+        
+        <!-- ZAMROŻONA RAMKA (Freeze Frame) -->
+        <div id="freeze-frame-container" style="display:none; margin-top:10px; padding:10px; background:#111; border-radius:6px; border:1px solid #333;">
+           <div style="font-size:10px; color:#aaa; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Freeze Frame (Mode 02)</div>
+           <div style="display:flex; justify-content:space-between; font-size:12px;">
+             <span>RPM: <span id="ff-rpm" style="color:#fff; font-weight:bold;">--</span></span>
+             <span>Load: <span id="ff-load" style="color:#fff; font-weight:bold;">--</span>%</span>
+             <span>Temp: <span id="ff-temp" style="color:#fff; font-weight:bold;">--</span>°C</span>
+           </div>
+        </div>
+
         <div style="font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px">Bus health</div>
         <div class="data-grid">
           <div class="data-card">
@@ -162,12 +188,21 @@ const char index_html[] = R"=====(
 
     <div class="panel-view car-view active">
       <div class="map-container">
-        <div class="map-placeholder">
-          <div class="car-icon-area"><i class="fas fa-microchip"></i></div>
-          <div style="color:#333;font-size:13px;letter-spacing:0.08em;text-transform:uppercase">Live diagnostics</div>
-        </div>
-        <div style="position:absolute;bottom:16px;right:16px;font-size:11px;color:#2a2a2a;text-align:right">
-          <div id="bus-status-corner">CAN bus active</div>
+        <div class="map-placeholder" style="background: #0a0a0a; flex-direction: column; justify-content: center; align-items: center; position: relative;">
+          
+          <!-- Shift-Light w kształcie łuku (Half-circle) -->
+          <div style="position: relative; width: 190px; height: 95px; margin-top: 20px;">
+            <svg viewBox="0 0 100 50" style="width: 100%; height: 100%; overflow: visible;">
+              <path d="M 5 50 A 45 45 0 0 1 95 50" fill="none" stroke="#1a1a1a" stroke-width="6" stroke-linecap="round" />
+              <path id="shift-light-arc" d="M 5 50 A 45 45 0 0 1 95 50" fill="none" stroke="#4CAF50" stroke-width="6" stroke-linecap="round" stroke-dasharray="141.4" stroke-dashoffset="141.4" style="transition: stroke-dashoffset 0.1s linear, stroke 0.2s;" />
+            </svg>
+            
+            <div style="position: absolute; bottom: -5px; left: 0; width: 100%; text-align: center;">
+              <div style="font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: -2px;">Gear</div>
+              <div id="calc-gear" style="font-size: 65px; font-weight: 200; line-height: 1;">N</div>
+            </div>
+          </div>
+
         </div>
       </div>
       <div class="gauge-grid" id="gauge-grid">
@@ -185,25 +220,31 @@ const char index_html[] = R"=====(
           <div class="gauge-label">Coolant (°C)</div>
         </div>
         <div class="gauge-tile">
-          <div class="gauge-value" id="gauge-voltage">—</div>
-          <div class="gauge-label">Voltage (V)</div>
+          <div class="gauge-value" id="gauge-runtime">—</div>
+          <div class="gauge-label">Run Time (s)</div>
+        </div>
+        <div class="gauge-tile">
+          <div class="gauge-value" id="gauge-load">—</div>
+          <div class="gauge-label">Load (%)</div>
+        </div>
+        <div class="gauge-tile">
+          <div class="gauge-value" id="gauge-throttle">—</div>
+          <div class="gauge-label">Throttle (%)</div>
         </div>
       </div>
-    </div>
+    </div> <!-- ZAMKNIĘCIE CAR-VIEW -->
 
     <div class="panel-view nav-view">
-      <div class="map-container">
-        <div class="map-placeholder">
-          <i class="fas fa-chart-line" style="font-size:40px;color:#333"></i>
-          <span style="color:#333;font-size:13px;letter-spacing:0.08em;text-transform:uppercase">Parameter graph</span>
-        </div>
-        <div class="route-info">
-          <div class="route-text" id="graph-param">Engine RPM &middot; live trend</div>
-          <div class="route-details">
-            <span><i class="fas fa-stopwatch"></i> last 60s</span>
-            <span><i class="fas fa-wave-square"></i> refresh 12 Hz</span>
+      <div class="map-container" style="flex-direction: column; background: #0a0a0a; padding: 15px; min-height: 400px;">
+        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 15px;">
+          <div style="font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.1em;">Telemetry (60s)</div>
+          <div style="display: flex; gap: 8px;">
+            <button class="chart-btn active" data-chart="rpm" data-color="#E74C3C" style="background:#E74C3C;color:#fff;border-color:#E74C3C;">RPM</button>
+            <button class="chart-btn" data-chart="speed" data-color="#3498DB" style="background:transparent;color:#3498DB;border-color:#3498DB;">Speed</button>
+            <button class="chart-btn" data-chart="coolant" data-color="#4CAF50" style="background:transparent;color:#4CAF50;border-color:#4CAF50;">Coolant</button>
           </div>
         </div>
+        <canvas id="main-telemetry-chart" style="width: 100%; flex: 1; min-height: 300px; display: block;"></canvas>
       </div>
     </div>
 
@@ -294,8 +335,6 @@ const char index_html[] = R"=====(
       </div>
     </div>
 
-    <!-- Serial monitor (moved here from a stray copy that had ended up
-         inside style_css - it must live in index_html to actually render -->
     <div class="panel-view serial-view">
       <div class="serial-monitor">
         <div class="serial-toolbar">
@@ -309,21 +348,10 @@ const char index_html[] = R"=====(
       </div>
     </div>
 
-  </div>
+  </div> <!-- ZAMKNIĘCIE CENTER-PANEL -->
 
   <!-- RIGHT PANEL -->
   <div class="right-panel">
-    <div class="passenger-temp">
-      <div class="passenger-temp-label">Engine Load</div>
-      <div class="passenger-temp-display">
-        <span id="engine-load-value">—</span><span class="temp-unit" style="font-size:18px;margin-left:3px">%</span>
-      </div>
-      <div class="passenger-temp-controls" style="visibility:hidden">
-        <button class="temp-btn"><i class="fas fa-minus"></i></button>
-        <button class="temp-btn"><i class="fas fa-plus"></i></button>
-      </div>
-    </div>
-
     <div class="bluetooth-info">
       <i class="fas fa-plug bluetooth-icon" id="ecu-icon"></i>
       <span class="bluetooth-text" id="ecu-status-text">ECU Connected</span>
@@ -345,9 +373,9 @@ const char index_html[] = R"=====(
         </div>
       </div>
     </div>
-  </div>
+  </div> <!-- ZAMKNIĘCIE RIGHT-PANEL -->
 
-</div>
+</div> <!-- ZAMKNIĘCIE DASHBOARD -->
 
 <!-- BOTTOM DOCK -->
 <div class="bottom-dock">
@@ -553,6 +581,7 @@ input:checked+.toggle-slider:before{transform:translateX(22px)}
 .frame-row .f-dir.tx{color:#3498DB}
 .frame-row .f-id{color:#F39C12;width:60px;flex-shrink:0}
 .frame-row .f-data{color:#999}
+.chart-btn{background:none;border:1px solid #555;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s}
 
 /* ===== Sparklines ===== */
 .pid-table td.spark-cell{padding:4px}
@@ -618,12 +647,9 @@ input:checked+.toggle-slider:before{transform:translateX(22px)}
 }
 )=====";
 
-const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', function() {
+const char script_js[] = R"=====(
+document.addEventListener('DOMContentLoaded', function() {
 
-  // ---- Serial monitor: polls /log over HTTP since USB serial isn't
-  // available while running off car power. Guarded with null-checks so
-  // that if this HTML block is ever missing/misplaced again, it logs a
-  // warning instead of throwing and killing the rest of this script. ----
   var serialOutput = document.getElementById('serial-output');
   var serialPauseBtn = document.getElementById('serial-pause-btn');
   var serialClearBtn = document.getElementById('serial-clear-btn');
@@ -638,7 +664,7 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
       this.innerHTML = serialPaused ? '<i class="fas fa-play"></i> Resume' : '<i class="fas fa-pause"></i> Pause';
     });
     serialClearBtn.addEventListener('click', function(){
-      serialOutput.textContent = ''; // clears the view only, not the device buffer
+      serialOutput.textContent = '';
     });
     (function pollSerialLog() {
       if (!serialPaused) {
@@ -649,24 +675,21 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
             serialOutput.textContent = text;
             if (atBottom) serialOutput.scrollTop = serialOutput.scrollHeight;
           }
-        }).catch(function(){ /* device out of WiFi range momentarily - next poll retries */ });
+        }).catch(function(){});
       }
       setTimeout(pollSerialLog, 700);
     })();
   }
 
-  // ---- Clock ----
   function updateClock() {
     var now = new Date();
-    var h = now.getHours(), m = now.getMinutes();
-    var ampm = h >= 12 ? 'PM' : 'AM';
+    var h = now.getHours(), m = now.getMinutes(), ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12 || 12;
     document.getElementById('clock').textContent = h + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
   }
   updateClock();
   setInterval(updateClock, 30000);
 
-  // ---- Left tabs ----
   document.querySelectorAll('.left-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {
       document.querySelectorAll('.left-tab').forEach(function(t){ t.classList.remove('active'); });
@@ -676,13 +699,12 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     });
   });
 
-  // ---- Bottom dock / center panel switching ----
   var dockBtns = document.querySelectorAll('.dock-btn');
   var panelViews = document.querySelectorAll('.panel-view');
   dockBtns.forEach(function(btn) {
     btn.addEventListener('click', function() {
       var target = document.querySelector('.' + btn.dataset.view);
-      if (!target) { console.warn('No panel-view found for', btn.dataset.view); return; }
+      if (!target) return;
       dockBtns.forEach(function(b){ b.classList.remove('active'); });
       panelViews.forEach(function(v){ v.classList.remove('active'); });
       btn.classList.add('active');
@@ -690,7 +712,6 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     });
   });
 
-  // ---- Sliders ----
   [['brightness-slider','brightness-val'],['poll-slider','poll-val']].forEach(function(pair) {
     var sl = document.getElementById(pair[0]), val = document.getElementById(pair[1]);
     if (sl && val) sl.addEventListener('input', function(){ val.textContent = sl.value; });
@@ -700,7 +721,7 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     { id: 'rpm',     name: 'Engine RPM',      unit: 'rpm',  value: null, supported: true, history: [] },
     { id: 'speed',   name: 'Vehicle Speed',   unit: 'km/h', value: null, supported: true, history: [] },
     { id: 'coolant', name: 'Coolant Temp',    unit: '\u00b0C',   value: null, supported: true, history: [] },
-    { id: 'voltage', name: 'Battery Voltage', unit: 'V',    value: null, supported: true, history: [] },
+    { id: 'runtime', name: 'Run Time', unit: 's', value: null, supported: true, history: [] },
     { id: 'load',    name: 'Engine Load',     unit: '%',    value: null, supported: true, history: [] },
     { id: 'throttle',name: 'Throttle Pos.',   unit: '%',    value: null, supported: true, history: [] }
   ];
@@ -750,30 +771,24 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
   }
   renderPidTable();
 
-  // ---- Freeze Display ----
   var isFrozen = false;
   var freezeBtn = document.getElementById('freeze-btn');
   var freezeBadge = document.getElementById('freeze-badge');
   var gaugeGrid = document.getElementById('gauge-grid');
   freezeBtn.addEventListener('click', function() {
     isFrozen = !isFrozen;
-    freezeBtn.innerHTML = isFrozen
-      ? '<i class="fas fa-play"></i> Resume display'
-      : '<i class="fas fa-snowflake"></i> Freeze display';
+    freezeBtn.innerHTML = isFrozen ? '<i class="fas fa-play"></i> Resume display' : '<i class="fas fa-snowflake"></i> Freeze display';
     freezeBadge.style.display = isFrozen ? 'flex' : 'none';
     gaugeGrid.classList.toggle('frozen', isFrozen);
   });
 
-  // ---- RX/TX LEDs ----
   var ledRx = document.getElementById('led-can-rx');
   var ledTx = document.getElementById('led-can-tx');
-  var ledKline = document.getElementById('led-kline');
   function blinkLed(el, cls) {
     el.classList.add(cls);
     setTimeout(function(){ el.classList.remove(cls); }, 120);
   }
 
-  // ---- Raw frame drawer ----
   var frameLog = [];
   var FRAME_LOG_MAX = 200;
   var frameListEl = document.getElementById('frame-list');
@@ -786,9 +801,7 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
   });
   document.getElementById('frame-pause-btn').addEventListener('click', function() {
     drawerPaused = !drawerPaused;
-    this.innerHTML = drawerPaused
-      ? '<i class="fas fa-play"></i> Resume'
-      : '<i class="fas fa-pause"></i> Pause';
+    this.innerHTML = drawerPaused ? '<i class="fas fa-play"></i> Resume' : '<i class="fas fa-pause"></i> Pause';
   });
   document.getElementById('frame-clear-btn').addEventListener('click', function() {
     frameLog = [];
@@ -805,29 +818,13 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     if (drawerPaused) return;
     var row = document.createElement('div');
     row.className = 'frame-row';
-    row.innerHTML =
-      '<span class="f-time">' + ts + '</span>' +
-      '<span class="f-dir ' + dir.toLowerCase() + '">' + dir + '</span>' +
-      '<span class="f-id">' + id + '</span>' +
-      '<span class="f-data">' + dataHex + '</span>';
+    row.innerHTML = '<span class="f-time">' + ts + '</span><span class="f-dir ' + dir.toLowerCase() + '">' + dir + '</span><span class="f-id">' + id + '</span><span class="f-data">' + dataHex + '</span>';
     frameListEl.appendChild(row);
     if (frameListEl.children.length > FRAME_LOG_MAX) frameListEl.removeChild(frameListEl.firstChild);
     frameListEl.scrollTop = frameListEl.scrollHeight;
   }
 
-  function randomHexByte() {
-    return Math.floor(Math.random() * 256).toString(16).toUpperCase().padStart(2, '0');
-  }
-  function randomCanId() {
-    return '0x' + Math.floor(Math.random() * 0x7FF).toString(16).toUpperCase().padStart(3, '0');
-  }
-
-  // ---- Gauge thresholds / color-coding ----
-  var THRESHOLDS = {
-    coolant: { warn: 100, crit: 115 },
-    voltage: { warnLow: 11.5, critLow: 10.8 },
-    rpm:     { warn: 5500, crit: 6500 }
-  };
+  var THRESHOLDS = { coolant: { warn: 100, crit: 115 }, rpm: { warn: 5500, crit: 6500 } };
 
   function applyGaugeColor(elId, tileEl, value, kind) {
     var el = document.getElementById(elId);
@@ -839,9 +836,6 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     if (kind === 'coolant') {
       if (v >= THRESHOLDS.coolant.crit) level = 'crit';
       else if (v >= THRESHOLDS.coolant.warn) level = 'warn';
-    } else if (kind === 'voltage') {
-      if (v <= THRESHOLDS.voltage.critLow) level = 'crit';
-      else if (v <= THRESHOLDS.voltage.warnLow) level = 'warn';
     } else if (kind === 'rpm') {
       if (v >= THRESHOLDS.rpm.crit) level = 'crit';
       else if (v >= THRESHOLDS.rpm.warn) level = 'warn';
@@ -850,22 +844,110 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     if (tileEl && level !== 'ok') tileEl.classList.add(level === 'warn' ? 'gauge-tile-warn' : 'gauge-tile-crit');
   }
 
+  var sessionStats = { maxSpeed: 0, maxRpm: 0, minCoolant: 999, maxCoolant: -999 };
+  var bigChartData = { rpm: [], speed: [], coolant: [] };
+  var BIG_CHART_LEN = 60;
+  var activeChart = 'rpm';
   var frameCount = 0;
   var wsConnected = false;
   var ws = null;
 
+  var chartBtns = document.querySelectorAll('.chart-btn');
+  chartBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      chartBtns.forEach(function(b) {
+        b.style.background = 'transparent';
+        b.style.color = b.getAttribute('data-color');
+      });
+      var color = btn.getAttribute('data-color');
+      btn.style.background = color;
+      btn.style.color = '#fff';
+      activeChart = btn.getAttribute('data-chart');
+      drawBigChart();
+    });
+  });
+
+  setInterval(function() {
+    if (!wsConnected || isFrozen) return;
+    bigChartData.rpm.push(getPid('rpm') || 0);
+    bigChartData.speed.push(getPid('speed') || 0);
+    bigChartData.coolant.push(getPid('coolant') || 0);
+    if (bigChartData.rpm.length > BIG_CHART_LEN) {
+      bigChartData.rpm.shift(); bigChartData.speed.shift(); bigChartData.coolant.shift();
+    }
+    drawBigChart();
+  }, 1000);
+
+  function drawBigChart() {
+    var canvas = document.getElementById('main-telemetry-chart');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    if (canvas.width !== canvas.clientWidth) canvas.width = canvas.clientWidth;
+    if (canvas.height !== canvas.clientHeight) canvas.height = canvas.clientHeight;
+    
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (bigChartData.rpm.length < 2) return;
+    
+    function drawLine(dataArr, maxVal, color) {
+      ctx.fillStyle = '#666'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      [0, maxVal/2, maxVal].forEach(function(val) {
+        var y = h - (val / maxVal) * (h - 20) - 10;
+        ctx.beginPath(); ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+        ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        ctx.fillText(Math.round(val), 5, y === h - 10 ? y - 2 : y - 4);
+      });
+
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+      for (var i = 0; i < dataArr.length; i++) {
+        var x = (i / (BIG_CHART_LEN - 1)) * w;
+        var val = Math.min(Math.max(dataArr[i], 0), maxVal);
+        var y = h - (val / maxVal) * (h - 20) - 10;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    
+    if (activeChart === 'rpm') drawLine(bigChartData.rpm, 5000, '#E74C3C');
+    else if (activeChart === 'speed') drawLine(bigChartData.speed, 200, '#3498DB');
+    else if (activeChart === 'coolant') drawLine(bigChartData.coolant, 120, '#4CAF50');
+  }
+
+  // --- OBSŁUGA PRZYCISKÓW ODCZYTU/KASOWANIA BŁĘDÓW (MODE 03 / 04) ---
+  document.getElementById('btn-read-dtc').addEventListener('click', function() {
+    if (wsConnected && ws) {
+      ws.send(JSON.stringify({ cmd: "read_dtc" }));
+      document.getElementById('dtc-list').innerHTML = '<div class="dtc-empty" style="color:#3498DB;">Reading from ECU...</div>';
+      var ffc = document.getElementById('freeze-frame-container');
+      if (ffc) ffc.style.display = 'none';
+    }
+  });
+
+  document.getElementById('btn-clear-dtc').addEventListener('click', function() {
+    if (confirm("WARNING: This will clear all engine codes. Turn ignition ON, engine OFF. Proceed?")) {
+      if (wsConnected && ws) {
+        ws.send(JSON.stringify({ cmd: "clear_dtc" }));
+        document.getElementById('dtc-list').innerHTML = '<div class="dtc-empty" style="color:#E74C3C;">Clearing codes...</div>';
+        var ffc = document.getElementById('freeze-frame-container');
+        if (ffc) ffc.style.display = 'none';
+      }
+    }
+  });
+
+  // --- GŁÓWNY HANDLER DANYCH Z ESP32 ---
   function applyWsData(d) {
-    frameCount = d.frames || frameCount;
+    frameCount++; 
     blinkLed(ledRx, 'lit-rx');
 
     if (!isFrozen) {
+      // 1. Aktualizacja Live PIDów
       pidState.forEach(function(p) {
         var val = null;
         switch (p.id) {
           case 'rpm':      val = d.rpm; break;
           case 'speed':    val = d.speed; break;
           case 'coolant':  val = d.coolant; break;
-          case 'voltage':  val = d.voltage; break;
+          case 'runtime':  val = d.runtime; break;
           case 'load':     val = d.load; break;
           case 'throttle': val = d.throttle; break;
         }
@@ -875,44 +957,84 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
       });
       renderPidTable();
       updateGauges();
-      document.getElementById('frame-count').textContent = frameCount;
-    }
+      
+      var frameCountEl = document.getElementById('frame-count');
+      if (frameCountEl) frameCountEl.textContent = frameCount;
 
-    logFrame('RX', '0x7E8', 'live-data');
+      // 2. Aktualizacja MAX/MIN Session Stats
+      if (d.speed > sessionStats.maxSpeed) sessionStats.maxSpeed = d.speed;
+      if (d.rpm > sessionStats.maxRpm) sessionStats.maxRpm = d.rpm;
+      if (d.coolant !== undefined && d.coolant !== null) {
+        if (d.coolant > sessionStats.maxCoolant) sessionStats.maxCoolant = d.coolant;
+        if (d.coolant < sessionStats.minCoolant) sessionStats.minCoolant = d.coolant;
+      }
+      
+      var elMaxSpd = document.getElementById('stat-max-speed'); if(elMaxSpd) elMaxSpd.textContent = sessionStats.maxSpeed;
+      var elMaxRpm = document.getElementById('stat-max-rpm'); if(elMaxRpm) elMaxRpm.textContent = sessionStats.maxRpm;
+      if (sessionStats.minCoolant !== 999) {
+        var elMinCool = document.getElementById('stat-min-coolant'); if(elMinCool) elMinCool.textContent = sessionStats.minCoolant;
+        var elMaxCool = document.getElementById('stat-max-coolant'); if(elMaxCool) elMaxCool.textContent = sessionStats.maxCoolant;
+      }
+
+      var protoNames = ["Wyszukiwanie...", "CAN 11-bit, 500k", "K-Line (Fast Init)", "K-Line (5-Baud)"];
+      var currentProtoName = protoNames[d.proto || 0] || "Unknown";
+      var bp = document.getElementById('bus-proto'); if (bp) bp.textContent = (d.proto ? "Active" : "Scan");
+      var statProtoEl = document.getElementById('stat-protocol'); if (statProtoEl) statProtoEl.textContent = currentProtoName;
+
+      // 3. OBSŁUGA ODP. DTC I FREEZE FRAME (Koszyk 2)
+      if (d.dtc_error) {
+         document.getElementById('dtc-list').innerHTML = '<div class="dtc-empty" style="color:#E74C3C;">Failed to communicate with ECU</div>';
+      } else if (d.dtcs !== undefined) {
+         if (d.dtcs.length === 0) {
+             document.getElementById('dtc-list').innerHTML = '<div class="dtc-empty">No DTCs reported</div>';
+             var ffc = document.getElementById('freeze-frame-container');
+             if(ffc) ffc.style.display = 'none';
+         } else {
+             var h = '';
+             d.dtcs.forEach(function(c) {
+                 h += '<div class="dtc-item"><span class="dtc-code">' + c + '</span><span class="dtc-desc">Logged Fault</span></div>';
+             });
+             document.getElementById('dtc-list').innerHTML = h;
+
+             // Wypełnianie tabeli Freeze Frame
+             if (d.ff_rpm !== undefined) {
+                 document.getElementById('ff-rpm').textContent = d.ff_rpm;
+                 document.getElementById('ff-load').textContent = d.ff_load;
+                 document.getElementById('ff-temp').textContent = d.ff_coolant;
+                 var ffc = document.getElementById('freeze-frame-container');
+                 if(ffc) ffc.style.display = 'block';
+             }
+         }
+      }
+    }
+    
+    updateMotorsportDashboard(d.rpm, d.speed);
+    var fakeHex = 'RPM:' + (d.rpm || 0) + ' SPD:' + (d.speed || 0) + ' TMP:' + (d.coolant || 0);
+    logFrame('RX', '0x7E8', fakeHex);
   }
 
   function connectWebSocket() {
     var proto = (location.protocol === 'https:') ? 'wss://' : 'ws://';
-    var url = proto + location.host + '/ws';
-    try {
-      ws = new WebSocket(url);
-    } catch (e) {
-      console.warn('WS fallback:', e);
-      return;
-    }
+    try { ws = new WebSocket(proto + location.host + '/ws'); } 
+    catch (e) { return; }
+    
     ws.onopen = function() {
       wsConnected = true;
-      document.getElementById('bus-status-corner').textContent = 'CAN bus active';
+      var bp = document.getElementById('bus-proto'); if (bp) bp.textContent = 'CAN bus active';
       document.getElementById('ecu-status-text').textContent = 'ECU Connected';
       document.getElementById('ecu-icon').style.color = '#4CAF50';
     };
     ws.onmessage = function(evt) {
-      try {
-        var d = JSON.parse(evt.data);
-        applyWsData(d);
-      } catch (e) { }
+      try { applyWsData(JSON.parse(evt.data)); } catch (e) { }
     };
     ws.onclose = function() {
       wsConnected = false;
-      document.getElementById('bus-status-corner').textContent = 'Reconnecting...';
+      var bp = document.getElementById('bus-proto'); if (bp) bp.textContent = 'Reconnecting...';
       document.getElementById('ecu-status-text').textContent = 'Connection Lost';
       document.getElementById('ecu-icon').style.color = '#E74C3C';
-
-      // MAGIA AUTO-RECONNECTU - Próbuje połączyć się ponownie co 1.5 sekundy!
       setTimeout(connectWebSocket, 1500);
     };
   }
-
   connectWebSocket();
 
   function getPid(id) {
@@ -924,32 +1046,15 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     document.getElementById('gauge-rpm').textContent     = (getPid('rpm')     === null ? '\u2014' : getPid('rpm'));
     document.getElementById('gauge-speed').textContent   = (getPid('speed')   === null ? '\u2014' : getPid('speed'));
     document.getElementById('gauge-coolant').textContent = (getPid('coolant') === null ? '\u2014' : getPid('coolant'));
-    document.getElementById('gauge-voltage').textContent = (getPid('voltage') === null ? '\u2014' : getPid('voltage'));
-    var coolantEl = document.getElementById('big-coolant');
-    if (coolantEl) coolantEl.textContent = (getPid('coolant') === null ? '\u2014' : getPid('coolant'));
-    var loadEl = document.getElementById('engine-load-value');
-    if (loadEl) loadEl.textContent = (getPid('load') === null ? '\u2014' : getPid('load'));
-
+    var gaugeLoad = document.getElementById('gauge-load'); if (gaugeLoad) gaugeLoad.textContent = (getPid('load') === null ? '\u2014' : getPid('load'));
+    var gaugeThrottle = document.getElementById('gauge-throttle'); if (gaugeThrottle) gaugeThrottle.textContent = (getPid('throttle') === null ? '\u2014' : getPid('throttle'));
+    var gaugeRuntime = document.getElementById('gauge-runtime'); if (gaugeRuntime) gaugeRuntime.textContent = (getPid('runtime') === null ? '\u2014' : getPid('runtime'));
+    var coolantEl = document.getElementById('big-coolant'); if (coolantEl) coolantEl.textContent = (getPid('coolant') === null ? '\u2014' : getPid('coolant'));
+    
     applyGaugeColor('gauge-coolant', document.getElementById('gauge-coolant').closest('.gauge-tile'), getPid('coolant'), 'coolant');
-    applyGaugeColor('gauge-voltage', document.getElementById('gauge-voltage').closest('.gauge-tile'), getPid('voltage'), 'voltage');
     applyGaugeColor('gauge-rpm',     document.getElementById('gauge-rpm').closest('.gauge-tile'),     getPid('rpm'),     'rpm');
   }
 
-  // ---- DTC list ----
-  var dtcs = [];
-  function renderDtcs() {
-    var list = document.getElementById('dtc-list');
-    if (!dtcs.length) {
-      list.innerHTML = '<div class="dtc-empty">No DTCs reported</div>';
-      return;
-    }
-    list.innerHTML = dtcs.map(function(d) {
-      return '<div class="dtc-item"><span class="dtc-code">' + d.code + '</span><span class="dtc-desc">' + d.desc + '</span></div>';
-    }).join('');
-  }
-  renderDtcs();
-
-  // ---- Session timer ----
   var sessionSeconds = 0;
   var sessionEl = document.getElementById('session-time');
   var sessionStartEl = document.getElementById('session-started');
@@ -968,19 +1073,6 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
   }
   updateSession();
 
-  document.getElementById('reset-session-btn').addEventListener('click', function() {
-    sessionSeconds = 0;
-    frameCount = 0;
-    sessionStartTime = new Date();
-    (function setStart() {
-      var h = sessionStartTime.getHours(), m = sessionStartTime.getMinutes();
-      var ampm = h >= 12 ? 'PM' : 'AM';
-      var hh = h % 12 || 12;
-      sessionStartEl.textContent = 'Started ' + hh + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
-    })();
-  });
-
-  // ---- Datalogger controls ----
   var isLogging = false, logSizeKb = 0;
   var playBtn = document.getElementById('play-btn');
   var progressFill = document.getElementById('progress-fill');
@@ -1004,22 +1096,82 @@ const char script_js[] = R"=====( document.addEventListener('DOMContentLoaded', 
     progressFill.style.width = '0%';
   });
 
-  function exportCsv() {
-    alert('CSV export will pull logged PID samples from the device once datalogging storage is implemented.');
+  function updateMotorsportDashboard(rpm, speed) {
+    if (isFrozen) return;
+    rpm = rpm || 0; speed = speed || 0;
+
+    var MAX_RPM = 5000;
+    var SHIFT_YELLOW = 3500;
+    var SHIFT_RED = 4200;
+
+    var RATIO_1 = 85, RATIO_2 = 50, RATIO_3 = 35, RATIO_4 = 26, RATIO_5 = 20;
+
+    var shiftLightArc = document.getElementById('shift-light-arc');
+    if (shiftLightArc) {
+      var pct = Math.min((rpm / MAX_RPM), 1.0);
+      var maxDash = 141.4;
+      shiftLightArc.style.strokeDashoffset = maxDash - (maxDash * pct);
+
+      if (rpm > SHIFT_RED) {
+        shiftLightArc.style.stroke = '#E74C3C'; 
+        shiftLightArc.style.filter = 'drop-shadow(0 0 8px #E74C3C)';
+      } else if (rpm > SHIFT_YELLOW) {
+        shiftLightArc.style.stroke = '#F39C12'; 
+        shiftLightArc.style.filter = 'drop-shadow(0 0 5px #F39C12)';
+      } else {
+        shiftLightArc.style.stroke = '#4CAF50'; 
+        shiftLightArc.style.filter = 'drop-shadow(0 0 0px transparent)';
+      }
+    }
+
+    var gearEl = document.getElementById('calc-gear');
+    if (gearEl) {
+      var gear = 'N';
+      if (speed > 5 && rpm > 700) {
+        var ratio = rpm / speed; 
+        if (ratio > RATIO_1) gear = '1';
+        else if (ratio > RATIO_2) gear = '2';
+        else if (ratio > RATIO_3) gear = '3';
+        else if (ratio > RATIO_4) gear = '4';
+        else if (ratio > RATIO_5) gear = '5';
+        else gear = '6';
+      }
+      gearEl.textContent = gear;
+    }
   }
-  document.getElementById('log-export').addEventListener('click', exportCsv);
-  document.getElementById('quick-log-export').addEventListener('click', exportCsv);
+
+  document.getElementById('log-export').addEventListener('click', function(){ alert('CSV export...'); });
+  document.getElementById('quick-log-export').addEventListener('click', function(){ alert('CSV export...'); });
 
   function simLogGrowth() {
     if (isLogging) {
       logSizeKb += 0.4;
       logSizeEl.textContent = logSizeKb.toFixed(1) + ' KB logged';
-      var pct = Math.min(100, logSizeKb % 100);
-      progressFill.style.width = pct + '%';
+      progressFill.style.width = Math.min(100, logSizeKb % 100) + '%';
     }
     setTimeout(simLogGrowth, 1000);
   }
   simLogGrowth();
+
+  document.getElementById('reset-session-btn').addEventListener('click', function() {
+    sessionSeconds = 0;
+    frameCount = 0;
+    sessionStartTime = new Date();
+    var h = sessionStartTime.getHours(), m = sessionStartTime.getMinutes(), ampm = h >= 12 ? 'PM' : 'AM';
+    var startEl = document.getElementById('session-started');
+    if(startEl) startEl.textContent = 'Started ' + (h % 12 || 12) + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+
+    sessionStats = { maxSpeed: 0, maxRpm: 0, minCoolant: 999, maxCoolant: -999 };
+    bigChartData = { rpm: [], speed: [], coolant: [] };
+    
+    var elMaxSpd = document.getElementById('stat-max-speed'); if(elMaxSpd) elMaxSpd.textContent = '0';
+    var elMaxRpm = document.getElementById('stat-max-rpm'); if(elMaxRpm) elMaxRpm.textContent = '0';
+    var elMinCool = document.getElementById('stat-min-coolant'); if(elMinCool) elMinCool.textContent = '--';
+    var elMaxCool = document.getElementById('stat-max-coolant'); if(elMaxCool) elMaxCool.textContent = '--';
+    
+    var canvas = document.getElementById('main-telemetry-chart');
+    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  });
 
 });
 )=====";

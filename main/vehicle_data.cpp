@@ -85,3 +85,60 @@ void vehicle_data_set_voltage(float voltage) {
         xSemaphoreGive(g_data_mutex);
     }
 }
+
+void vehicle_data_set_runtime(int runtime_s) {
+    if (xSemaphoreTake(g_data_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_vehicle_data.runtime_s = runtime_s;
+        touch_locked();
+        xSemaphoreGive(g_data_mutex);
+    }
+}
+
+void vehicle_data_set_protocol(int proto) {
+    if (xSemaphoreTake(g_data_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_vehicle_data.protocol = proto;
+        xSemaphoreGive(g_data_mutex);
+    }
+}
+
+void vehicle_data_clear_dtcs() {
+    if (xSemaphoreTake(g_data_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_vehicle_data.dtc_count = 0;
+        xSemaphoreGive(g_data_mutex);
+    }
+}
+
+void vehicle_data_add_dtc(const char* dtc_str) {
+    if (xSemaphoreTake(g_data_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (g_vehicle_data.dtc_count < MAX_DTCS) {
+            strncpy(g_vehicle_data.dtcs[g_vehicle_data.dtc_count], dtc_str, 5);
+            g_vehicle_data.dtcs[g_vehicle_data.dtc_count][5] = '\0';
+            g_vehicle_data.dtc_count++;
+        }
+        xSemaphoreGive(g_data_mutex);
+    }
+}
+
+void vehicle_data_inc_frame() {
+    if (xSemaphoreTake(g_data_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_vehicle_data.frame_count++;
+        xSemaphoreGive(g_data_mutex);
+    }
+}
+
+void vehicle_data_set_freeze_frame(int rpm, int load_pct, int coolant_c) {
+    if (xSemaphoreTake(g_data_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_vehicle_data.ff_rpm = rpm;
+        g_vehicle_data.ff_load_pct = load_pct;
+        g_vehicle_data.ff_coolant_c = coolant_c;
+        g_vehicle_data.freeze_frame_valid = true;
+        xSemaphoreGive(g_data_mutex);
+    }
+}
+
+void vehicle_data_set_dtc_error(bool error) {
+    if (xSemaphoreTake(g_data_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_vehicle_data.dtc_read_error = error;
+        xSemaphoreGive(g_data_mutex);
+    }
+}
