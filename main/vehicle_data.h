@@ -19,7 +19,7 @@ extern "C" {
 // telemetry task runs on core 0 - this struct is the shared boundary
 // between them and must be mutex-protected to avoid torn reads/writes.
 // =====================================================================
-
+#define MAX_DTCS 10
 typedef struct {
     int      rpm;
     int      speed_kmh;
@@ -28,9 +28,18 @@ typedef struct {
     int      throttle_pct;
     int      engine_load_pct;
     float    voltage;          // not yet decoded from CAN - see NOTE below
+    int      runtime_s;  
+    int protocol;      // <--- DODANE: Czas pracy silnika w sekundach
     uint32_t frame_count;      // total frames successfully decoded
     uint32_t last_update_ms;   // xTaskGetTickCount() of last write, for staleness checks
-    bool     has_data;         // false until first frame decoded
+    bool     has_data;
+    uint8_t dtc_count;
+    char dtcs[MAX_DTCS][6];         // false until first frame decoded
+    bool     freeze_frame_valid;
+    int      ff_rpm;
+    int      ff_load_pct;
+    int      ff_coolant_c;
+    bool     dtc_read_error;
 } vehicle_data_t;
 
 // NOTE: voltage isn't currently produced by any PID in Mock_CAN.h's
@@ -54,6 +63,13 @@ void vehicle_data_set_fuel(int fuel_pct);
 void vehicle_data_set_throttle(int throttle_pct);
 void vehicle_data_set_engine_load(int load_pct);
 void vehicle_data_set_voltage(float voltage);
+void vehicle_data_set_runtime(int runtime_s);
+void vehicle_data_set_protocol(int proto);
+void vehicle_data_clear_dtcs();
+void vehicle_data_add_dtc(const char* dtc_str);
+void vehicle_data_inc_frame();
+void vehicle_data_set_freeze_frame(int rpm, int load_pct, int coolant_c);
+void vehicle_data_set_dtc_error(bool error);
 
 #ifdef __cplusplus
 }
